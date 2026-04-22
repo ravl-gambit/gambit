@@ -222,6 +222,146 @@ body {
   line-height: 1.7;
 }
 
+/* ── Header (sign-out slot) ───────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sign-out-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  transition: color 0.15s;
+}
+
+.sign-out-btn:hover {
+  color: var(--text-soft);
+}
+
+/* ── Auth callback status ─────────────────────────────── */
+.auth-status {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 100vh;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.auth-status-icon {
+  font-size: 2.5rem;
+  color: var(--gold);
+  display: block;
+}
+
+.auth-status-icon.spin {
+  animation: spin 1.4s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.auth-status-text {
+  font-size: 1rem;
+  color: var(--text-soft);
+}
+
+.auth-error {
+  color: #e07070;
+}
+
+/* ── Dashboard ────────────────────────────────────────── */
+.dashboard-main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 4rem 1.5rem 6rem;
+  min-height: calc(100vh - 61px);
+}
+
+.dashboard-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #0b0b0b;
+  font-size: 1.875rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  line-height: 1;
+}
+
+.welcome-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  margin-bottom: 0.375rem;
+}
+
+.welcome-name {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.welcome-sub {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+
+.lichess-link {
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.lichess-link:hover {
+  color: var(--gold);
+  text-decoration: underline;
+}
+
+.dashboard-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-wide {
+  width: 100%;
+}
+
 /* ── Responsive ───────────────────────────────────────── */
 @media (max-width: 640px) {
   .header {
