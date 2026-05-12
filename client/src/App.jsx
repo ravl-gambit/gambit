@@ -112,10 +112,12 @@ function AuthCallback({ onSuccess }) {
       .then((r) => r.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);
+        const pendingInvite = sessionStorage.getItem('pending_invite');
         sessionStorage.removeItem('pkce_verifier');
+        if (pendingInvite) sessionStorage.removeItem('pending_invite');
         saveUser(data.user);
         window.history.replaceState({}, '', '/');
-        onSuccess(data.user);
+        onSuccess(data.user, pendingInvite);
       })
       .catch((err) => setError(err.message));
   }, []);
@@ -260,11 +262,100 @@ function CreateGroup({ user, onCreated, onBack }) {
   );
 }
 
+// ── Join page ──────────────────────────────────────────────────────────────
+
+function JoinPage({ inviteCode, user, onJoined, onBack }) {
+  const [group, setGroup] = useState(null);
+  const [memberCount, setMemberCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch(`/api/groups/invite/${inviteCode}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) throw new Error(data.error);
+        setGroup(data.group);
+        setMemberCount(data.member_count);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [inviteCode]);
+
+  async function handleJoin() {
+    setJoining(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/groups/${inviteCode}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      onJoined(data.group);
+    } catch (err) {
+      setError(err.message);
+      setJoining(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="board-texture" aria-hidden="true" />
+        <div className="auth-status">
+          <span className="auth-status-icon spin">♞</span>
+          <p className="auth-status-text">Loading group…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page">
+      <div className="board-texture" aria-hidden="true" />
+      <Header onLogoClick={onBack} />
+      <main className="form-main">
+        <div className="form-card">
+          <span className="join-icon">♛</span>
+          <h1 className="form-title">{error ? 'Invalid invite' : group?.name}</h1>
+          {error ? (
+            <>
+              <p className="form-error">{error}</p>
+              <button className="btn btn-ghost btn-wide" onClick={onBack}>Back</button>
+            </>
+          ) : (
+            <>
+              <p className="form-subtitle">
+                {memberCount === 0
+                  ? 'Be the first to join this ladder.'
+                  : `${memberCount} member${memberCount === 1 ? '' : 's'} on the ladder`}
+              </p>
+              <button
+                className="btn btn-primary btn-wide"
+                onClick={handleJoin}
+                disabled={joining}
+              >
+                {joining ? 'Joining…' : 'Join Ladder'}
+              </button>
+            </>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
 // ── Group page ─────────────────────────────────────────────────────────────
 
-function GroupPage({ group: initialGroup, user, onBack }) {
+function GroupPage({ group: initialGroup, user, onBack, onRecordResult }) {
   const [members, setMembers] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [challengeResult, setChallengeResult] = useState(null);
+  const [challengeError, setChallengeError] = useState(null);
+  const [challenging, setChallenging] = useState(null);
   const inviteUrl = `${window.location.origin}/join/${initialGroup.invite_code}`;
 
   useEffect(() => {
@@ -282,6 +373,36 @@ function GroupPage({ group: initialGroup, user, onBack }) {
       // clipboard unavailable — user can copy manually
     }
   }
+
+  const me = members.find((m) => m.lichess_id === user?.lichess_id);
+  const challengeable = me
+    ? members.filter((m) => me.rank - m.rank >= 1 && me.rank - m.rank <= 3)
+    : [];
+
+  async function handleChallenge(defender) {
+    setChallenging(defender.lichess_id);
+    setChallengeError(null);
+    try {
+      const res = await fetch('/api/challenges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          group_id: initialGroup.id,
+          challenger_id: user.id,
+          defender_id: defender.user_id,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setChallengeResult({ url: data.challenge_url, defenderName: defender.display_name });
+    } catch (err) {
+      setChallengeError(err.message);
+    } finally {
+      setChallenging(null);
+    }
+  }
+
+  const showChallengeCol = me && challengeable.length > 0;
 
   return (
     <div className="page">
@@ -328,6 +449,7 @@ function GroupPage({ group: initialGroup, user, onBack }) {
                   <th>#</th>
                   <th>Player</th>
                   <th className="col-right">Rating</th>
+                  {showChallengeCol && <th className="col-action" />}
                 </tr>
               </thead>
               <tbody>
@@ -345,10 +467,224 @@ function GroupPage({ group: initialGroup, user, onBack }) {
                       </a>
                     </td>
                     <td className="col-right col-rating">{m.rating}</td>
+                    {showChallengeCol && (
+                      <td className="col-action">
+                        {challengeable.some((c) => c.lichess_id === m.lichess_id) && (
+                          <button
+                            className="btn btn-ghost challenge-btn"
+                            disabled={!!challenging}
+                            onClick={() => handleChallenge(m)}
+                          >
+                            {challenging === m.lichess_id ? '…' : 'Challenge'}
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {challengeResult && (
+          <div className="panel challenge-result-panel">
+            <p className="panel-label">Challenge sent to {challengeResult.defenderName}</p>
+            <a
+              href={challengeResult.url}
+              className="btn btn-primary"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open on Lichess
+            </a>
+            <button className="btn btn-ghost" onClick={() => setChallengeResult(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        {challengeError && (
+          <p className="form-error" style={{ marginTop: '0.75rem' }}>{challengeError}</p>
+        )}
+
+        {members.length >= 2 && (
+          <button className="btn btn-ghost btn-wide record-result-btn" onClick={onRecordResult}>
+            Record Result
+          </button>
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ── Record result ──────────────────────────────────────────────────────────
+
+function RecordResult({ group, user, onRecorded, onBack }) {
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [challengerId, setChallengerId] = useState('');
+  const [defenderId, setDefenderId] = useState('');
+  const [winner, setWinner] = useState('challenger');
+  const [lichessGameId, setLichessGameId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch(`/api/groups/${group.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setMembers(data.members ?? []);
+        setLoadingMembers(false);
+      });
+  }, [group.id]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!challengerId || !defenderId) {
+      setError('Please select both players.');
+      return;
+    }
+    if (challengerId === defenderId) {
+      setError('Challenger and defender must be different players.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          group_id: group.id,
+          challenger_id: parseInt(challengerId, 10),
+          defender_id: parseInt(defenderId, 10),
+          winner,
+          lichess_game_id: lichessGameId.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      onRecorded();
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }
+
+  const challengerName = members.find((m) => String(m.user_id) === challengerId)?.display_name;
+  const defenderName = members.find((m) => String(m.user_id) === defenderId)?.display_name;
+
+  return (
+    <div className="page">
+      <div className="board-texture" aria-hidden="true" />
+      <Header onLogoClick={onBack} />
+      <main className="form-main">
+        <div className="form-card">
+          <h1 className="form-title">Record a result</h1>
+          <p className="form-subtitle">{group.name} · Season {group.season}</p>
+
+          {loadingMembers ? (
+            <div className="auth-status" style={{ padding: '2rem 0' }}>
+              <span className="auth-status-icon spin">♞</span>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="field">
+                <label htmlFor="challenger">Challenger</label>
+                <select
+                  id="challenger"
+                  value={challengerId}
+                  onChange={(e) => setChallengerId(e.target.value)}
+                >
+                  <option value="">Select challenger…</option>
+                  {members.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.display_name} (#{m.rank})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor="defender">Defender</label>
+                <select
+                  id="defender"
+                  value={defenderId}
+                  onChange={(e) => setDefenderId(e.target.value)}
+                >
+                  <option value="">Select defender…</option>
+                  {members.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.display_name} (#{m.rank})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label>Result</label>
+                <div className="radio-group">
+                  <label className="radio-label">
+                    <input
+                      type="radio"
+                      name="winner"
+                      value="challenger"
+                      checked={winner === 'challenger'}
+                      onChange={() => setWinner('challenger')}
+                    />
+                    {challengerName ? `${challengerName} wins` : 'Challenger wins'}
+                  </label>
+                  <label className="radio-label">
+                    <input
+                      type="radio"
+                      name="winner"
+                      value="defender"
+                      checked={winner === 'defender'}
+                      onChange={() => setWinner('defender')}
+                    />
+                    {defenderName ? `${defenderName} wins` : 'Defender wins'}
+                  </label>
+                  <label className="radio-label">
+                    <input
+                      type="radio"
+                      name="winner"
+                      value="draw"
+                      checked={winner === 'draw'}
+                      onChange={() => setWinner('draw')}
+                    />
+                    Draw
+                  </label>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="lichess-game-id">Lichess game ID (optional)</label>
+                <input
+                  id="lichess-game-id"
+                  type="text"
+                  value={lichessGameId}
+                  onChange={(e) => setLichessGameId(e.target.value)}
+                  placeholder="e.g. abcd1234"
+                  maxLength={20}
+                />
+              </div>
+
+              {error && <p className="form-error">{error}</p>}
+
+              <div className="form-actions">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading}
+                >
+                  {loading ? 'Saving…' : 'Save result'}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={onBack}>
+                  Cancel
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </main>
@@ -358,19 +694,38 @@ function GroupPage({ group: initialGroup, user, onBack }) {
 
 // ── Router ─────────────────────────────────────────────────────────────────
 
+const isCallback = window.location.pathname === '/auth/callback';
+const isJoin = window.location.pathname.startsWith('/join/');
+const joinCode = isJoin ? window.location.pathname.slice(6) : null;
+
 export default function App() {
-  const isCallback = window.location.pathname === '/auth/callback';
   const [user, setUser] = useState(() => (isCallback ? null : getUser()));
+  const [inviteCode, setInviteCode] = useState(joinCode);
   const [page, setPage] = useState(() => {
     if (isCallback) return 'callback';
+    if (isJoin && !getUser()) return 'join-login';
+    if (isJoin && getUser()) return 'join';
     if (getUser()) return 'dashboard';
     return 'landing';
   });
   const [group, setGroup] = useState(null);
 
-  function handleAuthSuccess(u) {
+  // Redirect to Lichess OAuth when we have a pending invite but no session
+  useEffect(() => {
+    if (page === 'join-login') {
+      sessionStorage.setItem('pending_invite', joinCode);
+      initiateLogin();
+    }
+  }, []);
+
+  function handleAuthSuccess(u, pendingCode) {
     setUser(u);
-    setPage('dashboard');
+    if (pendingCode) {
+      setInviteCode(pendingCode);
+      setPage('join');
+    } else {
+      setPage('dashboard');
+    }
   }
 
   function handleGroupCreated(g) {
@@ -380,6 +735,27 @@ export default function App() {
 
   if (page === 'callback')
     return <AuthCallback onSuccess={handleAuthSuccess} />;
+
+  if (page === 'join-login')
+    return (
+      <div className="page">
+        <div className="board-texture" aria-hidden="true" />
+        <div className="auth-status">
+          <span className="auth-status-icon spin">♞</span>
+          <p className="auth-status-text">Redirecting to Lichess…</p>
+        </div>
+      </div>
+    );
+
+  if (page === 'join' && inviteCode && user)
+    return (
+      <JoinPage
+        inviteCode={inviteCode}
+        user={user}
+        onJoined={(g) => { setGroup(g); setPage('group'); }}
+        onBack={() => setPage('dashboard')}
+      />
+    );
 
   if (page === 'dashboard' && user)
     return (
@@ -405,6 +781,17 @@ export default function App() {
         group={group}
         user={user}
         onBack={() => setPage('dashboard')}
+        onRecordResult={() => setPage('record-result')}
+      />
+    );
+
+  if (page === 'record-result' && group && user)
+    return (
+      <RecordResult
+        group={group}
+        user={user}
+        onRecorded={() => setPage('group')}
+        onBack={() => setPage('group')}
       />
     );
 
