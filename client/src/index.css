@@ -697,6 +697,13 @@ body {
   margin-bottom: 0.5rem;
 }
 
+/* ── Lichess rating column (secondary context) ────────────────────────── */
+
+.col-lichess-rating {
+  color: var(--text-soft);
+  font-size: 0.875rem;
+}
+
 /* ── Challenge column in standings ────────────────────────────────────── */
 
 .col-action {

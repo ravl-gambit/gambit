@@ -42,16 +42,18 @@ router.post('/callback', async (req, res) => {
     }
 
     const profile = await profileRes.json();
+    const rapidRating = profile.perfs?.rapid?.rating ?? null;
 
     // Upsert into users table
     const { rows } = await query(
-      `INSERT INTO users (lichess_id, display_name, access_token)
-       VALUES ($1, $2, $3)
+      `INSERT INTO users (lichess_id, display_name, access_token, lichess_rapid_rating)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (lichess_id) DO UPDATE
-         SET display_name  = EXCLUDED.display_name,
-             access_token  = EXCLUDED.access_token
+         SET display_name         = EXCLUDED.display_name,
+             access_token         = EXCLUDED.access_token,
+             lichess_rapid_rating = EXCLUDED.lichess_rapid_rating
        RETURNING id, lichess_id, display_name`,
-      [profile.id, profile.username, access_token],
+      [profile.id, profile.username, access_token, rapidRating],
     );
 
     res.json({ user: rows[0] });

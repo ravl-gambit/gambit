@@ -448,7 +448,8 @@ function GroupPage({ group: initialGroup, user, onBack, onRecordResult }) {
                 <tr>
                   <th>#</th>
                   <th>Player</th>
-                  <th className="col-right">Rating</th>
+                  <th className="col-right">Gambit</th>
+                  <th className="col-right col-lichess-rating">Lichess</th>
                   {showChallengeCol && <th className="col-action" />}
                 </tr>
               </thead>
@@ -467,6 +468,9 @@ function GroupPage({ group: initialGroup, user, onBack, onRecordResult }) {
                       </a>
                     </td>
                     <td className="col-right col-rating">{m.rating}</td>
+                    <td className="col-right col-lichess-rating">
+                      {m.lichess_rapid_rating ?? '—'}
+                    </td>
                     {showChallengeCol && (
                       <td className="col-action">
                         {challengeable.some((c) => c.lichess_id === m.lichess_id) && (

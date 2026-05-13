@@ -1,11 +1,15 @@
 -- Users: one row per Lichess account that has connected to Gambit
 CREATE TABLE IF NOT EXISTS users (
-  id              SERIAL PRIMARY KEY,
-  lichess_id      TEXT NOT NULL UNIQUE,   -- Lichess username (lowercase)
-  display_name    TEXT NOT NULL,          -- display name from Lichess profile
-  access_token    TEXT,                   -- Lichess OAuth token
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                    SERIAL PRIMARY KEY,
+  lichess_id            TEXT NOT NULL UNIQUE,   -- Lichess username (lowercase)
+  display_name          TEXT NOT NULL,          -- display name from Lichess profile
+  access_token          TEXT,                   -- Lichess OAuth token
+  lichess_rapid_rating  INTEGER,                -- Lichess rapid rating at last login
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration: add lichess_rapid_rating if upgrading from earlier schema
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS lichess_rapid_rating INTEGER;
 
 -- Groups: a private ladder (e.g. "Work Chess Club")
 CREATE TABLE IF NOT EXISTS groups (

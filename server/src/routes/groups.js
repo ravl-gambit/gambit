@@ -102,7 +102,8 @@ router.get('/:id', async (req, res) => {
          ROUND(gm.rating)::int  AS rating,
          gm.role,
          u.lichess_id,
-         u.display_name
+         u.display_name,
+         u.lichess_rapid_rating
        FROM group_members gm
        JOIN users u ON u.id = gm.user_id
        WHERE gm.group_id = $1 AND gm.season = $2
